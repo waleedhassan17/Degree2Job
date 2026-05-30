@@ -46,6 +46,7 @@ interface AppState {
   saveJob: (job: Job) => void;
   removeSavedJob: (jobId: string) => void;
   setSavedStatus: (jobId: string, status: ApplicationStatus) => void;
+  markApplied: (job: Job) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -106,6 +107,34 @@ export const useAppStore = create<AppState>()(
               : x
           ),
         })),
+      // Clicking "Apply" tracks the job as applied — saving it first if needed.
+      markApplied: (job) =>
+        set((s) => {
+          const now = new Date().toISOString();
+          const existing = s.savedJobs.find((x) => x.jobId === job.id);
+          if (existing) {
+            return {
+              savedJobs: s.savedJobs.map((x) =>
+                x.jobId === job.id
+                  ? { ...x, status: "applied", appliedAt: x.appliedAt || now }
+                  : x
+              ),
+            };
+          }
+          return {
+            savedJobs: [
+              {
+                id: `local-${job.id}`,
+                jobId: job.id,
+                status: "applied",
+                createdAt: now,
+                appliedAt: now,
+                job,
+              },
+              ...s.savedJobs,
+            ],
+          };
+        }),
     }),
     {
       name: "jobpulse-store",

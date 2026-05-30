@@ -11,10 +11,11 @@ interface Props {
   loading: boolean;
   onView: (job: JobWithMatch) => void;
   onToggleSave: (job: JobWithMatch) => void;
+  onApply?: (job: JobWithMatch) => void;
   onClearFilters?: () => void;
 }
 
-export function JobGrid({ jobs, loading, onView, onToggleSave, onClearFilters }: Props) {
+export function JobGrid({ jobs, loading, onView, onToggleSave, onApply, onClearFilters }: Props) {
   if (loading && jobs.length === 0) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -45,7 +46,13 @@ export function JobGrid({ jobs, loading, onView, onToggleSave, onClearFilters }:
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {jobs.map((job) => (
-        <JobCard key={job.id} job={job} onView={onView} onToggleSave={onToggleSave} />
+        <JobCard
+          key={job.id}
+          job={job}
+          onView={onView}
+          onToggleSave={onToggleSave}
+          onApply={onApply}
+        />
       ))}
     </div>
   );

@@ -13,7 +13,7 @@ export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { resumeId, savedJobs } = useAppStore();
-  const { toggle } = useSavedJobs();
+  const { toggle, markApplied } = useSavedJobs();
   const [job, setJob] = useState<JobWithMatch | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +68,7 @@ export default function JobDetailPage() {
         resumeId={resumeId}
         onClose={() => router.push("/jobs")}
         onToggleSave={toggle}
+        onApply={markApplied}
       />
     </div>
   );

@@ -29,9 +29,10 @@ interface Props {
   resumeId: string | null;
   onClose: () => void;
   onToggleSave: (job: JobWithMatch) => void;
+  onApply?: (job: JobWithMatch) => void;
 }
 
-export function JobDetail({ job, resumeId, onClose, onToggleSave }: Props) {
+export function JobDetail({ job, resumeId, onClose, onToggleSave, onApply }: Props) {
   const [coverOpen, setCoverOpen] = useState(false);
   const salary = job && formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
 
@@ -145,7 +146,12 @@ export function JobDetail({ job, resumeId, onClose, onToggleSave }: Props) {
                   <Sparkles className="h-4 w-4" /> Generate Cover Letter
                 </Button>
                 <Button asChild className="flex-1">
-                  <a href={job.applyUrl} target="_blank" rel="noopener noreferrer">
+                  <a
+                    href={job.applyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => onApply?.(job)}
+                  >
                     Apply on {SOURCE_LABELS[job.source]}
                   </a>
                 </Button>

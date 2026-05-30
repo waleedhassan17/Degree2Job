@@ -23,9 +23,8 @@ export default function DashboardPage() {
     const by = (s: ApplicationStatus) => saved.filter((j) => j.status === s).length;
     return {
       total: saved.length,
+      saved: by("saved"),
       applied: by("applied"),
-      interview: by("interview"),
-      offer: by("offer"),
     };
   }, [saved]);
 
@@ -75,12 +74,11 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mb-6 grid grid-cols-3 gap-3">
             {[
               { label: "Tracked", value: stats.total },
+              { label: "Saved", value: stats.saved },
               { label: "Applied", value: stats.applied },
-              { label: "Interviews", value: stats.interview },
-              { label: "Offers", value: stats.offer },
             ].map((s) => (
               <Card key={s.label}>
                 <CardContent className="p-4">

@@ -31,7 +31,7 @@ export default function JobsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const { jobs, isLoading, isFetching, sourceBreakdown } = useJobs(sort, search);
-  const { toggle } = useSavedJobs();
+  const { toggle, markApplied } = useSavedJobs();
   const match = useJobMatch();
 
   const [selected, setSelected] = useState<JobWithMatch | null>(null);
@@ -235,6 +235,7 @@ export default function JobsPage() {
             loading={isLoading}
             onView={setSelected}
             onToggleSave={toggle}
+            onApply={markApplied}
             onClearFilters={resetFilters}
           />
           {visible < jobs.length && <div ref={sentinelRef} className="h-10" />}
@@ -265,6 +266,7 @@ export default function JobsPage() {
         resumeId={resumeId}
         onClose={() => setSelected(null)}
         onToggleSave={toggle}
+        onApply={markApplied}
       />
     </div>
   );

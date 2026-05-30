@@ -37,6 +37,7 @@ export function useSavedJobs() {
   const saveJob = useAppStore((s) => s.saveJob);
   const removeSavedJob = useAppStore((s) => s.removeSavedJob);
   const setSavedStatus = useAppStore((s) => s.setSavedStatus);
+  const markAppliedInStore = useAppStore((s) => s.markApplied);
 
   const toggle = (job: JobWithMatch) => {
     const isSaved = savedJobs.some((s) => s.jobId === job.id);
@@ -47,6 +48,13 @@ export function useSavedJobs() {
       saveJob(job);
       syncSave(job.id);
     }
+  };
+
+  // Called when the user clicks Apply — tracks it under "Applied".
+  const markApplied = (job: JobWithMatch) => {
+    markAppliedInStore(job);
+    syncSave(job.id);
+    syncStatus(job.id, "applied");
   };
 
   const updateStatus = ({
@@ -60,5 +68,5 @@ export function useSavedJobs() {
     syncStatus(jobId, status);
   };
 
-  return { saved: savedJobs, isLoading: false, toggle, updateStatus };
+  return { saved: savedJobs, isLoading: false, toggle, updateStatus, markApplied };
 }

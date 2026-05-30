@@ -20,6 +20,7 @@ interface Props {
   job: JobWithMatch;
   onView: (job: JobWithMatch) => void;
   onToggleSave: (job: JobWithMatch) => void;
+  onApply?: (job: JobWithMatch) => void;
 }
 
 // Deterministic accent colour per company so the avatars feel intentional.
@@ -38,7 +39,7 @@ function avatarColor(seed: string): string {
   return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
-function JobCardImpl({ job, onView, onToggleSave }: Props) {
+function JobCardImpl({ job, onView, onToggleSave, onApply }: Props) {
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
   const skills = (job.requirements || []).filter(Boolean).slice(0, 3);
 
@@ -123,7 +124,12 @@ function JobCardImpl({ job, onView, onToggleSave }: Props) {
           <Bookmark className={cn("h-4 w-4", job.isSaved && "fill-primary text-primary")} />
         </Button>
         <Button asChild size="sm">
-          <a href={job.applyUrl} target="_blank" rel="noopener noreferrer">
+          <a
+            href={job.applyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => onApply?.(job)}
+          >
             Apply <ExternalLink className="h-3.5 w-3.5" />
           </a>
         </Button>

@@ -8,9 +8,6 @@ import type { SavedJob, ApplicationStatus } from "@/lib/types";
 const COLUMNS: { status: ApplicationStatus; label: string; accent: string }[] = [
   { status: "saved", label: "Saved", accent: "border-t-slate-400" },
   { status: "applied", label: "Applied", accent: "border-t-primary" },
-  { status: "interview", label: "Interview", accent: "border-t-amber-500" },
-  { status: "offer", label: "Offer", accent: "border-t-emerald-500" },
-  { status: "rejected", label: "Rejected", accent: "border-t-rose-500" },
 ];
 
 interface Props {
@@ -24,7 +21,7 @@ export function StatusKanban({ items, onStatusChange, onSelect }: Props) {
   const [overColumn, setOverColumn] = useState<ApplicationStatus | null>(null);
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       {COLUMNS.map((col) => {
         const colItems = items.filter((i) => i.status === col.status);
         return (
