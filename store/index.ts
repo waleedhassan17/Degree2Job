@@ -2,7 +2,13 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { ParsedProfile, FilterState } from "@/lib/types";
+import type {
+  ParsedProfile,
+  FilterState,
+  SavedJob,
+  Job,
+  ApplicationStatus,
+} from "@/lib/types";
 
 const DEFAULT_FILTERS: FilterState = {
   city: [],
@@ -34,10 +40,12 @@ interface AppState {
   setFilters: (patch: Partial<FilterState>) => void;
   resetFilters: () => void;
 
-  // Saved jobs (ids only — full records come from the server)
-  savedJobIds: string[];
-  setSavedJobIds: (ids: string[]) => void;
-  toggleSaved: (jobId: string) => void;
+  // Saved jobs — full records persisted locally so the tracker works
+  // across navigations/reloads without a database.
+  savedJobs: SavedJob[];
+  saveJob: (job: Job) => void;
+  removeSavedJob: (jobId: string) => void;
+  setSavedStatus: (jobId: string, status: ApplicationStatus) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -63,13 +71,40 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ filters: { ...s.filters, ...patch } })),
       resetFilters: () => set({ filters: DEFAULT_FILTERS }),
 
-      savedJobIds: [],
-      setSavedJobIds: (ids) => set({ savedJobIds: ids }),
-      toggleSaved: (jobId) =>
+      savedJobs: [],
+      saveJob: (job) =>
+        set((s) =>
+          s.savedJobs.some((x) => x.jobId === job.id)
+            ? s
+            : {
+                savedJobs: [
+                  {
+                    id: `local-${job.id}`,
+                    jobId: job.id,
+                    status: "saved",
+                    createdAt: new Date().toISOString(),
+                    job,
+                  },
+                  ...s.savedJobs,
+                ],
+              }
+        ),
+      removeSavedJob: (jobId) =>
+        set((s) => ({ savedJobs: s.savedJobs.filter((x) => x.jobId !== jobId) })),
+      setSavedStatus: (jobId, status) =>
         set((s) => ({
-          savedJobIds: s.savedJobIds.includes(jobId)
-            ? s.savedJobIds.filter((id) => id !== jobId)
-            : [...s.savedJobIds, jobId],
+          savedJobs: s.savedJobs.map((x) =>
+            x.jobId === jobId
+              ? {
+                  ...x,
+                  status,
+                  appliedAt:
+                    status === "applied"
+                      ? x.appliedAt || new Date().toISOString()
+                      : x.appliedAt,
+                }
+              : x
+          ),
         })),
     }),
     {
@@ -80,7 +115,7 @@ export const useAppStore = create<AppState>()(
         resumeId: s.resumeId,
         profile: s.profile,
         filters: s.filters,
-        savedJobIds: s.savedJobIds,
+        savedJobs: s.savedJobs,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

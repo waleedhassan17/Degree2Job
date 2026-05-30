@@ -12,7 +12,7 @@ import type { JobWithMatch } from "@/lib/types";
 export default function JobDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { resumeId, savedJobIds } = useAppStore();
+  const { resumeId, savedJobs } = useAppStore();
   const { toggle } = useSavedJobs();
   const [job, setJob] = useState<JobWithMatch | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,7 +26,7 @@ export default function JobDetailPage() {
         if (!res.ok) throw new Error("Job not found");
         const { job } = (await res.json()) as { job: JobWithMatch };
         if (active) {
-          setJob({ ...job, isSaved: savedJobIds.includes(job.id) });
+          setJob({ ...job, isSaved: savedJobs.some((s) => s.jobId === job.id) });
         }
       } catch (e) {
         if (active) setError(e instanceof Error ? e.message : "Error");
@@ -37,7 +37,7 @@ export default function JobDetailPage() {
     return () => {
       active = false;
     };
-  }, [params.id, savedJobIds]);
+  }, [params.id, savedJobs]);
 
   if (loading) {
     return (

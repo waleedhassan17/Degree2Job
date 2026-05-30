@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { SlidersHorizontal, Sparkles, X } from "lucide-react";
+import { SlidersHorizontal, Sparkles, X, Search, Loader2 } from "lucide-react";
 import { FilterSidebar } from "@/components/jobs/FilterSidebar";
 import { JobGrid } from "@/components/jobs/JobGrid";
 import { JobDetail } from "@/components/jobs/JobDetail";
@@ -28,7 +28,9 @@ const PAGE_SIZE = 12;
 export default function JobsPage() {
   const { profile, resumeId, resetFilters, hasHydrated } = useAppStore();
   const [sort, setSort] = useState<SortKey>("match");
-  const { jobs, isLoading, sourceBreakdown } = useJobs(sort);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const { jobs, isLoading, isFetching, sourceBreakdown } = useJobs(sort, search);
   const { toggle } = useSavedJobs();
   const match = useJobMatch();
 
@@ -111,10 +113,14 @@ export default function JobsPage() {
     <div className="container py-8">
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Matched jobs</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {search ? "Search results" : "Matched jobs"}
+          </h1>
           <p className="mt-1 text-sm text-slate-500">
             {jobs.length} roles for{" "}
-            <span className="font-medium text-slate-700">{profile.preferredRole}</span>
+            <span className="font-medium text-slate-700">
+              {search || profile.preferredRole}
+            </span>
             {match.isPending && " · scoring matches…"}
           </p>
         </div>
@@ -139,6 +145,68 @@ export default function JobsPage() {
           </Select>
         </div>
       </div>
+
+      {/* Manual search */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setSearch(searchInput.trim());
+          setVisible(PAGE_SIZE);
+        }}
+        className="mb-6 flex items-center gap-2"
+      >
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search any role, e.g. Full Stack Developer, UI/UX Designer, Accountant…"
+            className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-10 pr-10 text-sm shadow-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label="Search jobs"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput("");
+                setSearch("");
+                setVisible(PAGE_SIZE);
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <Button type="submit" className="h-11 px-5" disabled={isFetching}>
+          {isFetching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Search className="h-4 w-4" />
+          )}
+          Search
+        </Button>
+      </form>
+
+      {search && (
+        <div className="mb-4 flex items-center gap-2 text-sm text-slate-500">
+          <span>
+            Showing results for{" "}
+            <span className="font-medium text-slate-700">&ldquo;{search}&rdquo;</span>
+          </span>
+          <button
+            onClick={() => {
+              setSearchInput("");
+              setSearch("");
+              setVisible(PAGE_SIZE);
+            }}
+            className="font-medium text-primary hover:underline"
+          >
+            Back to my matches
+          </button>
+        </div>
+      )}
 
       {sourceBreakdown.length > 0 && (
         <div className="mb-6 flex flex-wrap gap-2">

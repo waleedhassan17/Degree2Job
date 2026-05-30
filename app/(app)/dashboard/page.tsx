@@ -93,7 +93,7 @@ export default function DashboardPage() {
 
           <StatusKanban
             items={saved}
-            onStatusChange={(jobId, status) => updateStatus.mutate({ jobId, status })}
+            onStatusChange={(jobId, status) => updateStatus({ jobId, status })}
           />
         </>
       )}

@@ -8,7 +8,6 @@ import type { ParsedProfile } from "@/lib/types";
 
 function HydrationHandler() {
   const setProfile = useAppStore((s) => s.setProfile);
-  const setSavedJobIds = useAppStore((s) => s.setSavedJobIds);
   const setUserId = useAppStore((s) => s.setUserId);
   const setHasHydrated = useAppStore((s) => s.setHasHydrated);
 
@@ -27,12 +26,10 @@ function HydrationHandler() {
             userId: string;
             resumeId: string | null;
             profile: ParsedProfile | null;
-            savedJobIds: string[];
           };
         };
         if (cancelled || !user) return;
         setUserId(user.userId);
-        setSavedJobIds(user.savedJobIds ?? []);
         if (user.resumeId && user.profile) {
           setProfile(user.resumeId, user.profile);
         }
@@ -46,7 +43,7 @@ function HydrationHandler() {
     return () => {
       cancelled = true;
     };
-  }, [setHasHydrated, setProfile, setSavedJobIds, setUserId]);
+  }, [setHasHydrated, setProfile, setUserId]);
 
   return null;
 }
