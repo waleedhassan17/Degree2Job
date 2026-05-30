@@ -63,12 +63,14 @@ async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
   }
 }
 
-export async function fetchMustakbilJobs(role: string, city: string): Promise<Job[]> {
-  const cacheKey = `jobs:mustakbil:${role}:${city}`.toLowerCase();
+// The RSS feed is the same regardless of query, so fetch + map it once (cached
+// under a role-independent key) and re-rank per role/city on each call.
+async function getAllMustakbil(): Promise<Job[]> {
+  const cacheKey = "jobs:mustakbil:all";
   const cached = await cacheGet<Job[]>(cacheKey);
   if (cached) return cached;
 
-  const res = await fetchWithTimeout(RSS_URL, 15000);
+  const res = await fetchWithTimeout(RSS_URL, 12000);
   if (!res.ok) throw new Error(`Mustakbil RSS responded ${res.status}`);
 
   const xml = await res.text();
@@ -80,53 +82,55 @@ export async function fetchMustakbilJobs(role: string, city: string): Promise<Jo
       : [rawItems]
     : [];
 
+  const now = new Date().toISOString();
+  const jobs: Job[] = items.map((item) => {
+    const jobCity = (item.city || "Pakistan").toString();
+    const description = stripHtml(item.description);
+    return {
+      id: `mustakbil-${guidString(item.guid) ?? item.link ?? item.title ?? Math.random()}`
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, "-")
+        .slice(0, 80),
+      externalId: guidString(item.guid),
+      title: item.title?.toString().trim() || "Untitled Role",
+      company: item.company?.toString().trim() || "Mustakbil Employer",
+      location: `${jobCity}, Pakistan`,
+      city: jobCity,
+      salaryCurrency: "PKR",
+      jobType: "full-time",
+      description: description.slice(0, 1500),
+      requirements: [],
+      source: "mustakbil",
+      applyUrl:
+        item.link?.toString().trim() ||
+        guidString(item.guid) ||
+        "https://www.mustakbil.com/jobs",
+      postedAt: safeDate(item.pubDate || item.pubdate, now),
+      fetchedAt: now,
+    };
+  });
+
+  await cacheSet(cacheKey, jobs, CACHE_TTL.default);
+  return jobs;
+}
+
+export async function fetchMustakbilJobs(role: string, city: string): Promise<Job[]> {
+  const all = await getAllMustakbil();
   const roleTokens = role
     .toLowerCase()
     .split(/\s+/)
     .filter((t) => t.length > 2);
   const cityLc = (city || "").toLowerCase();
-  const now = new Date().toISOString();
 
-  const scored = items
-    .map((item) => {
-      const jobCity = (item.city || city || "Pakistan").toString();
-      const category = Array.isArray(item.category)
-        ? item.category[0]
-        : item.category;
-      const description = stripHtml(item.description);
-      const hay = `${item.title ?? ""} ${category ?? ""} ${description}`.toLowerCase();
+  return [...all]
+    .map((job) => {
+      const hay = `${job.title} ${job.description}`.toLowerCase();
       let rank = 0;
       if (roleTokens.length && roleTokens.some((t) => hay.includes(t))) rank += 2;
-      if (cityLc && jobCity.toLowerCase().includes(cityLc)) rank += 1;
-
-      const job: Job = {
-        id: `mustakbil-${guidString(item.guid) ?? item.link ?? item.title ?? Math.random()}`
-          .toLowerCase()
-          .replace(/[^a-z0-9-]+/g, "-")
-          .slice(0, 80),
-        externalId: guidString(item.guid),
-        title: item.title?.toString().trim() || "Untitled Role",
-        company: item.company?.toString().trim() || "Mustakbil Employer",
-        location: `${jobCity}, Pakistan`,
-        city: jobCity,
-        salaryCurrency: "PKR",
-        jobType: "full-time",
-        description: description.slice(0, 1500),
-        requirements: [],
-        source: "mustakbil",
-        applyUrl:
-          item.link?.toString().trim() ||
-          guidString(item.guid) ||
-          "https://www.mustakbil.com/jobs",
-        postedAt: safeDate(item.pubDate || item.pubdate, now),
-        fetchedAt: now,
-      };
+      if (cityLc && job.city.toLowerCase().includes(cityLc)) rank += 1;
       return { rank, job };
     })
     .sort((a, b) => b.rank - a.rank)
     .slice(0, 50)
     .map((s) => s.job);
-
-  await cacheSet(cacheKey, scored, CACHE_TTL.default);
-  return scored;
 }

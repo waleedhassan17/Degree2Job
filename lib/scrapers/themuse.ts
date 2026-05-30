@@ -39,8 +39,10 @@ function jobTypeFor(j: MuseJob): JobType {
   return "full-time";
 }
 
-export async function fetchMuseJobs(role: string, city: string): Promise<Job[]> {
-  const cacheKey = `jobs:themuse:${role}`.toLowerCase();
+// The Muse query here is fixed, so fetch + map once (role-independent cache)
+// and re-rank per role/city on each call.
+async function getAllMuse(): Promise<Job[]> {
+  const cacheKey = "jobs:themuse:all";
   const cached = await cacheGet<Job[]>(cacheKey);
   if (cached) return cached;
 
@@ -49,42 +51,26 @@ export async function fetchMuseJobs(role: string, city: string): Promise<Job[]> 
   // The Muse maps free-text loosely; "Software Engineering" is a valid category.
   url.searchParams.set("category", "Software Engineering");
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; degree2job/1.0)",
-      Accept: "application/json",
-    },
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error(`The Muse responded ${res.status}`);
-
-  const json = (await res.json()) as MuseResponse;
-  const results = json.results ?? [];
-
-  const tokens = role
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((t) => t.length > 2);
-  const cityLc = city.toLowerCase();
-
-  // Rank: role-matching first, then Pakistan/remote, so the feed feels relevant.
-  const scored = results
-    .map((j) => {
-      const text = `${j.name} ${(j.categories ?? [])
-        .map((c) => c.name)
-        .join(" ")}`.toLowerCase();
-      const loc = (j.locations ?? []).map((l) => l.name?.toLowerCase()).join(" ");
-      let rank = 0;
-      if (tokens.some((t) => text.includes(t))) rank += 2;
-      if (loc.includes("pakistan") || loc.includes(cityLc)) rank += 3;
-      if (loc.includes("remote") || loc.includes("flexible")) rank += 1;
-      return { j, rank };
-    })
-    .sort((a, b) => b.rank - a.rank)
-    .slice(0, 30);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  let json: MuseResponse;
+  try {
+    const res = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; degree2job/1.0)",
+        Accept: "application/json",
+      },
+      signal: ctrl.signal,
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) throw new Error(`The Muse responded ${res.status}`);
+    json = (await res.json()) as MuseResponse;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const now = new Date().toISOString();
-  const jobs: Job[] = scored.map(({ j }) => {
+  const jobs: Job[] = (json.results ?? []).map((j) => {
     const location = j.locations?.[0]?.name?.trim() || "Remote";
     return {
       id: `themuse-${j.id}`,
@@ -111,4 +97,27 @@ export async function fetchMuseJobs(role: string, city: string): Promise<Job[]> 
 
   await cacheSet(cacheKey, jobs, CACHE_TTL.default);
   return jobs;
+}
+
+export async function fetchMuseJobs(role: string, city: string): Promise<Job[]> {
+  const all = await getAllMuse();
+  const tokens = role
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 2);
+  const cityLc = city.toLowerCase();
+
+  return [...all]
+    .map((job) => {
+      const text = `${job.title} ${job.requirements.join(" ")}`.toLowerCase();
+      const loc = job.location.toLowerCase();
+      let rank = 0;
+      if (tokens.some((t) => text.includes(t))) rank += 2;
+      if (loc.includes("pakistan") || (cityLc && loc.includes(cityLc))) rank += 3;
+      if (loc.includes("remote") || loc.includes("flexible")) rank += 1;
+      return { rank, job };
+    })
+    .sort((a, b) => b.rank - a.rank)
+    .slice(0, 30)
+    .map((s) => s.job);
 }

@@ -58,7 +58,7 @@ const NTS_URL = "https://www.nts.org.pk/new/projectsnew.php";
 const NTS_BASE = "https://www.nts.org.pk";
 
 async function fetchNts(now: string): Promise<Job[]> {
-  const res = await fetchWithRetry(NTS_URL, { "User-Agent": UA }, [10000, 15000]);
+  const res = await fetchWithRetry(NTS_URL, { "User-Agent": UA }, [7000, 9000]);
   if (!res) return [];
   const html = await res.text();
 
@@ -119,7 +119,7 @@ async function fetchFpsc(now: string): Promise<Job[]> {
   const res = await fetchWithRetry(
     FPSC_API,
     { "User-Agent": UA, Accept: "application/json" },
-    [10000, 18000]
+    [7000, 9000]
   );
   if (!res) return [];
   const json = (await res.json()) as { data?: FpscRow[] };

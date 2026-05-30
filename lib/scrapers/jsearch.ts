@@ -48,16 +48,25 @@ export async function fetchJSearchJobs(role: string, city: string): Promise<Job[
   const url = new URL("https://jsearch.p.rapidapi.com/search");
   url.searchParams.set("query", `${role} in ${city || "Pakistan"}`);
   url.searchParams.set("page", "1");
-  url.searchParams.set("num_pages", "2");
+  // One page keeps the request fast; it still returns ~10 listings.
+  url.searchParams.set("num_pages", "1");
   url.searchParams.set("date_posted", "month");
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
-      "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-    },
-    next: { revalidate: 0 },
-  });
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 7000);
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      headers: {
+        "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
+        "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+      },
+      signal: ctrl.signal,
+      next: { revalidate: 0 },
+    });
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) throw new Error(`JSearch responded ${res.status}`);
 
   const json = (await res.json()) as JSearchResponse;

@@ -38,39 +38,35 @@ function matchesRole(j: RemoteOKJob, tokens: string[]): boolean {
   return tokens.some((t) => hay.includes(t));
 }
 
-export async function fetchRemoteOkJobs(role: string): Promise<Job[]> {
-  const cacheKey = `jobs:remoteok:${role}`.toLowerCase();
+// RemoteOK returns the same feed regardless of query, so we fetch+map it once
+// (cached under a role-independent key) and only re-rank per role on each call.
+// That makes switching roles instant after the first load.
+async function getAllRemoteOk(): Promise<Job[]> {
+  const cacheKey = "jobs:remoteok:all";
   const cached = await cacheGet<Job[]>(cacheKey);
   if (cached) return cached;
 
-  const res = await fetch("https://remoteok.com/api", {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; degree2job/1.0)",
-      Accept: "application/json",
-    },
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error(`RemoteOK responded ${res.status}`);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  let data: RemoteOKJob[] = [];
+  try {
+    const res = await fetch("https://remoteok.com/api", {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; degree2job/1.0)",
+        Accept: "application/json",
+      },
+      signal: ctrl.signal,
+      next: { revalidate: 0 },
+    });
+    if (!res.ok) throw new Error(`RemoteOK responded ${res.status}`);
+    data = (await res.json()) as RemoteOKJob[];
+  } finally {
+    clearTimeout(timer);
+  }
 
-  const data = (await res.json()) as RemoteOKJob[];
   const entries = (Array.isArray(data) ? data : []).filter((j) => j.position);
-
-  const tokens = role
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((t) => t.length > 2);
-
-  // Rank role matches first, then fill with the rest so the feed is relevant
-  // but never empty.
-  const chosen = [...entries]
-    .sort(
-      (a, b) =>
-        Number(matchesRole(b, tokens)) - Number(matchesRole(a, tokens))
-    )
-    .slice(0, 40);
-
   const now = new Date().toISOString();
-  const jobs: Job[] = chosen.map((j) => ({
+  const jobs: Job[] = entries.map((j) => ({
     id: `remoteok-${j.id ?? j.slug}`,
     externalId: String(j.id ?? j.slug ?? ""),
     title: j.position || "Remote Role",
@@ -91,4 +87,21 @@ export async function fetchRemoteOkJobs(role: string): Promise<Job[]> {
 
   await cacheSet(cacheKey, jobs, CACHE_TTL.default);
   return jobs;
+}
+
+export async function fetchRemoteOkJobs(role: string): Promise<Job[]> {
+  const all = await getAllRemoteOk();
+  const tokens = role
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 2);
+
+  // Rank role matches first, then fill with the rest so the feed is relevant.
+  return [...all]
+    .sort(
+      (a, b) =>
+        Number(matchesRole({ position: b.title, tags: b.requirements, description: b.description }, tokens)) -
+        Number(matchesRole({ position: a.title, tags: a.requirements, description: a.description }, tokens))
+    )
+    .slice(0, 40);
 }

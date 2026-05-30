@@ -14,29 +14,51 @@ function getRedis(): Redis | null {
   return redis;
 }
 
-/** Read a cached value. Returns null on miss or when Redis isn't configured. */
+// In-memory fallback so caching works even without Upstash Redis configured.
+// Lives for the lifetime of the server process (and warm serverless instances),
+// which makes repeat searches and role switches near-instant.
+const memStore = new Map<string, { value: unknown; expires: number }>();
+
+function memGet<T>(key: string): T | null {
+  const hit = memStore.get(key);
+  if (!hit) return null;
+  if (hit.expires < Date.now()) {
+    memStore.delete(key);
+    return null;
+  }
+  return hit.value as T;
+}
+
+function memSet<T>(key: string, value: T, ttlSeconds: number): void {
+  memStore.set(key, { value, expires: Date.now() + ttlSeconds * 1000 });
+}
+
+/** Read a cached value. Falls back to an in-memory cache when Redis is absent. */
 export async function cacheGet<T>(key: string): Promise<T | null> {
   const r = getRedis();
-  if (!r) return null;
+  if (!r) return memGet<T>(key);
   try {
     return (await r.get<T>(key)) ?? null;
   } catch {
-    return null;
+    return memGet<T>(key);
   }
 }
 
-/** Write a cached value with a TTL (seconds). No-ops when Redis isn't configured. */
+/** Write a cached value with a TTL (seconds). Uses in-memory cache without Redis. */
 export async function cacheSet<T>(
   key: string,
   value: T,
   ttlSeconds: number
 ): Promise<void> {
   const r = getRedis();
-  if (!r) return;
+  if (!r) {
+    memSet(key, value, ttlSeconds);
+    return;
+  }
   try {
     await r.set(key, value, { ex: ttlSeconds });
   } catch {
-    // Caching is best-effort; never block the request.
+    memSet(key, value, ttlSeconds);
   }
 }
 
