@@ -29,7 +29,9 @@ export default function DashboardPage() {
     };
   }, [saved]);
 
-  if (!mounted || !hasHydrated) {
+  // Wait for hydration AND the saved-jobs query before deciding what to show,
+  // so we never flash the empty stats/kanban and then collapse to the empty card.
+  if (!mounted || !hasHydrated || isLoading) {
     return (
       <div className="container py-8">
         <div className="mb-6 flex items-center gap-2">
@@ -50,7 +52,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-bold tracking-tight">Application tracker</h1>
       </div>
 
-      {saved.length === 0 && !isLoading ? (
+      {saved.length === 0 ? (
         <div className="relative flex flex-col items-center overflow-hidden rounded-2xl px-6 py-24 text-center">
           <div
             className="absolute inset-0 bg-cover bg-center"

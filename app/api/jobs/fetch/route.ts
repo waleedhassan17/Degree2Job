@@ -5,7 +5,7 @@ import { fetchMustakbilJobs } from "@/lib/scrapers/mustakbil";
 import { fetchGovtJobs } from "@/lib/scrapers/govt";
 import { fetchRemoteOkJobs } from "@/lib/scrapers/remoteok";
 import { fetchMuseJobs } from "@/lib/scrapers/themuse";
-import { applyFilters, dedupeJobs } from "@/lib/matching";
+import { applyFilters, dedupeJobs, filterRelevantJobs } from "@/lib/matching";
 import { jobToRow } from "@/lib/mappers";
 import { getSupabaseServer, isSupabaseConfigured } from "@/lib/supabase";
 import type { Job, JobSource, SourceBreakdown, ParsedProfile, FilterState } from "@/lib/types";
@@ -70,7 +70,10 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    const jobs = filters ? applyFilters(dedupeJobs(all) as any, filters) : dedupeJobs(all);
+    // Keep only jobs relevant to the user's preferred role, then apply any
+    // explicit UI filters on top.
+    const relevant = filterRelevantJobs(dedupeJobs(all), profile);
+    const jobs = filters ? applyFilters(relevant as any, filters) : relevant;
 
     // Best-effort cache into Supabase for the match step to read back by id.
     if (isSupabaseConfigured() && jobs.length) {

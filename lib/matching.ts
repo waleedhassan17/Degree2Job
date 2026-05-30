@@ -19,6 +19,130 @@ export function dedupeJobs(jobs: Job[]): Job[] {
   return out;
 }
 
+// Generic role-type words carry little signal on their own ("developer" matches
+// almost any tech job), so they score low. Domain words ("full", "stack",
+// "data") are the distinctive part of a role and score high.
+const GENERIC_ROLE_WORDS = new Set([
+  "developer", "engineer", "officer", "manager", "executive", "analyst",
+  "designer", "specialist", "consultant", "associate", "coordinator", "intern",
+  "internship", "lead", "senior", "junior", "assistant", "trainee",
+  "professional", "expert", "staff", "graduate", "fresh", "jobs", "job", "role",
+]);
+const ROLE_STOPWORDS = new Set(["and", "or", "the", "for", "with", "of", "in", "to", "a", "an"]);
+
+// Common job-ad modifiers that look like role words but aren't distinctive —
+// e.g. "full" (Full Stack) must not match "Full-Time" on a Driver listing.
+const COMMON_MODIFIERS = new Set([
+  "full", "part", "time", "level", "set", "new", "remote", "onsite", "hybrid",
+  "urgent", "based", "team", "online", "work", "home", "entry",
+]);
+
+/** Whole-word containment check, so "ai" doesn't match "email", etc. */
+function hasWord(text: string, word: string): boolean {
+  const w = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${w}([^a-z0-9]|$)`, "i").test(text);
+}
+
+// Light synonym expansion so related titles still count as relevant.
+const ROLE_EXPANSIONS: [RegExp, string[]][] = [
+  [/full[\s-]?stack/, ["full stack", "fullstack", "full-stack", "mern", "mean"]],
+  [/front[\s-]?end/, ["frontend", "front end", "front-end", "react", "angular", "vue"]],
+  [/back[\s-]?end/, ["backend", "back end", "back-end", "node", "django", "laravel", ".net"]],
+  [/web\s*develop/, ["web developer", "frontend", "full stack", "wordpress"]],
+  [/software\s*(engineer|develop)/, ["software engineer", "software developer", "sde"]],
+  [/data\s*analyst/, ["data analyst", "data analytics", "business intelligence", "power bi", "tableau", "sql"]],
+  [/data\s*scien/, ["data scientist", "data science", "machine learning", "ml engineer"]],
+  [/data\s*engineer/, ["data engineer", "etl", "pipeline", "spark"]],
+  [/machine\s*learn|ml\b|\bai\b/, ["machine learning", "ml engineer", "ai engineer", "deep learning"]],
+  [/mobile|android|ios|flutter/, ["mobile", "android", "ios", "flutter", "react native"]],
+  [/devops|sre|cloud/, ["devops", "sre", "aws", "kubernetes", "docker", "ci/cd", "cloud"]],
+  [/ui|ux|product\s*design|graphic/, ["ui", "ux", "figma", "designer", "product design"]],
+  [/qa|test|quality/, ["qa", "quality assurance", "test engineer", "sdet", "automation"]],
+  [/account|finance|audit/, ["accountant", "finance", "audit", "bookkeep"]],
+  [/market|seo|content/, ["marketing", "seo", "content", "digital marketing", "social media"]],
+];
+
+function roleTokens(role: string): string[] {
+  return role
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length > 2 && !ROLE_STOPWORDS.has(t));
+}
+
+/**
+ * How well a job matches the user's preferred role (higher = more relevant).
+ * Title hits dominate; body and skill overlap add supporting signal. Used to
+ * keep the feed precise — only genuinely relevant roles are shown.
+ */
+export function roleRelevanceScore(profile: ParsedProfile, job: Job): number {
+  const role = (profile.preferredRole || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!role) return 100; // No preferred role → don't filter anything out.
+
+  const title = job.title.toLowerCase();
+  const body = `${job.title} ${job.description} ${(job.requirements || []).join(" ")}`.toLowerCase();
+  const tokens = roleTokens(role);
+  const distinctive = tokens.filter(
+    (t) => !GENERIC_ROLE_WORDS.has(t) && !COMMON_MODIFIERS.has(t)
+  );
+  const expansions = ROLE_EXPANSIONS.filter(([re]) => re.test(role)).flatMap(
+    ([, arr]) => arr
+  );
+
+  let score = 0;
+
+  // Exact role phrase in the title is the strongest signal.
+  if (title.includes(role)) score += 100;
+
+  // Synonym phrase in title / body.
+  if (expansions.some((p) => title.includes(p))) score += 50;
+  if (expansions.some((p) => body.includes(p))) score += 12;
+
+  // Distinctive role words in the title (strong), generic words (weak).
+  for (const t of distinctive) if (hasWord(title, t)) score += 40;
+  for (const t of tokens) if (GENERIC_ROLE_WORDS.has(t) && hasWord(title, t)) score += 12;
+
+  // Distinctive words anywhere in the body.
+  for (const t of distinctive) if (hasWord(body, t)) score += 8;
+
+  // Skill overlap — helps when the title is generic but the role fits.
+  const skillHits = (profile.skills || []).filter((s) => {
+    const k = s.toLowerCase();
+    return k.length > 2 && body.includes(k);
+  }).length;
+  score += Math.min(36, skillHits * 9);
+
+  return score;
+}
+
+const RELEVANCE_THRESHOLD = 45;
+const RELEVANCE_MIN_RESULTS = 6;
+
+/**
+ * Keep only jobs relevant to the user's preferred role. If too few clear the
+ * bar (niche role / sparse sources), fall back to the best-scoring jobs so the
+ * feed is never empty — but precise roles get a precise feed.
+ */
+export function filterRelevantJobs(jobs: Job[], profile?: ParsedProfile | null): Job[] {
+  if (!profile?.preferredRole) return jobs;
+
+  const scored = jobs
+    .map((job) => ({ job, score: roleRelevanceScore(profile, job) }))
+    .sort((a, b) => b.score - a.score);
+
+  const relevant = scored.filter((x) => x.score >= RELEVANCE_THRESHOLD);
+  const chosen =
+    relevant.length > 0
+      ? relevant
+      : scored.slice(0, RELEVANCE_MIN_RESULTS);
+
+  return chosen.map((x) => x.job);
+}
+
 /**
  * Heuristic local pre-score (0–100). Used to rank jobs before the AI
  * match is available, and as a fallback if the AI match fails.
