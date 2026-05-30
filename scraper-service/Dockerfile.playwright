@@ -1,0 +1,18 @@
+# Heavier image that bundles headless Chromium so the Rozee anti-bot challenge
+# can be solved. Use only if you set ENABLE_PLAYWRIGHT=1. ~1GB RAM recommended.
+FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8000 \
+    ENABLE_PLAYWRIGHT=1
+
+WORKDIR /app
+
+COPY requirements.txt requirements-playwright.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-playwright.txt
+
+COPY . .
+
+EXPOSE 8000
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]

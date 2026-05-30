@@ -1,0 +1,19 @@
+# Render Blueprint for the Degree2Job scraper microservice.
+# The service lives in the scraper-service/ subdirectory of this repo.
+# Deploy: Render Dashboard → New → Blueprint → pick this repo.
+services:
+  - type: web
+    name: degree2job-scraper
+    runtime: docker
+    rootDir: scraper-service
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Generates a random secret on first deploy. Copy its value into the
+      # Next.js app's SCRAPER_API_KEY so requests are authenticated.
+      - key: API_KEY
+        generateValue: true
+      - key: LOG_LEVEL
+        value: INFO

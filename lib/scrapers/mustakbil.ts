@@ -25,7 +25,11 @@ export async function fetchMustakbilJobs(
     role
   )}&city=${encodeURIComponent(city)}`;
 
-  const res = await fetch(url, { next: { revalidate: 0 } });
+  const apiKey = process.env.SCRAPER_API_KEY;
+  const res = await fetch(url, {
+    next: { revalidate: 0 },
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+  });
   if (!res.ok) throw new Error(`Mustakbil scraper responded ${res.status}`);
 
   const raw = (await res.json()) as RawScraperJob[];

@@ -21,7 +21,11 @@ export async function fetchGovtJobs(): Promise<Job[]> {
   if (cached) return cached;
 
   const url = `${base.replace(/\/$/, "")}/scrape/govt`;
-  const res = await fetch(url, { next: { revalidate: 0 } });
+  const apiKey = process.env.SCRAPER_API_KEY;
+  const res = await fetch(url, {
+    next: { revalidate: 0 },
+    headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+  });
   if (!res.ok) throw new Error(`Govt scraper responded ${res.status}`);
 
   const raw = (await res.json()) as RawGovtJob[];
