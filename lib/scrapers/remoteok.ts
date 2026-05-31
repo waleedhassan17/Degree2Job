@@ -1,5 +1,6 @@
 import type { Job } from "../types";
 import { cacheGet, cacheSet, CACHE_TTL } from "../redis";
+import { stripHtml, decodeEntities } from "./html";
 
 // RemoteOK exposes a free, keyless JSON feed of remote jobs worldwide —
 // open to Pakistani applicants. The first array element is a legal notice,
@@ -17,17 +18,6 @@ interface RemoteOKJob {
   url?: string;
   salary_min?: number;
   salary_max?: number;
-}
-
-function stripHtml(html?: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&#\d+;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function matchesRole(j: RemoteOKJob, tokens: string[]): boolean {
@@ -69,9 +59,9 @@ async function getAllRemoteOk(): Promise<Job[]> {
   const jobs: Job[] = entries.map((j) => ({
     id: `remoteok-${j.id ?? j.slug}`,
     externalId: String(j.id ?? j.slug ?? ""),
-    title: j.position || "Remote Role",
-    company: j.company || "Remote Employer",
-    location: j.location?.trim() || "Remote",
+    title: decodeEntities(j.position) || "Remote Role",
+    company: decodeEntities(j.company) || "Remote Employer",
+    location: decodeEntities(j.location?.trim()) || "Remote",
     city: "Remote",
     salaryMin: j.salary_min,
     salaryMax: j.salary_max,

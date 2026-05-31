@@ -1,5 +1,6 @@
 import type { Job } from "../types";
 import { cacheGet, cacheSet, CACHE_TTL } from "../redis";
+import { stripHtml } from "./html";
 
 // Government jobs are scraped directly from the Next.js app (no separate
 // service needed):
@@ -9,17 +10,6 @@ import { cacheGet, cacheSet, CACHE_TTL } from "../redis";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
-
-function stripHtml(html?: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&#\d+;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 async function fetchWithTimeout(
   url: string,
@@ -129,7 +119,8 @@ async function fetchFpsc(now: string): Promise<Job[]> {
     .filter((r) => (r.title || "").trim())
     .map((r) => {
       const label = FPSC_CATEGORY[r.category ?? ""] || r.category || "";
-      const title = label ? `${r.title} (${label})` : (r.title as string);
+      const cleanName = stripHtml(r.title) || "FPSC Announcement";
+      const title = label ? `${cleanName} (${label})` : cleanName;
       return {
         id: `fpsc-${r.id}`,
         externalId: `${r.id}`,

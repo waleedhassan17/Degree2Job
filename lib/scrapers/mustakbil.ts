@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import type { Job } from "../types";
 import { cacheGet, cacheSet, CACHE_TTL } from "../redis";
+import { stripHtml, cleanTitle } from "./html";
 
 // Mustakbil publishes an official RSS feed with ~500 structured listings —
 // far more reliable than scraping its HTML search pages. We fetch it directly
@@ -23,17 +24,6 @@ interface RssItem {
 }
 
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
-
-function stripHtml(html?: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&#\d+;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function guidString(guid: RssItem["guid"]): string | undefined {
   if (!guid) return undefined;
@@ -84,7 +74,7 @@ async function getAllMustakbil(): Promise<Job[]> {
 
   const now = new Date().toISOString();
   const jobs: Job[] = items.map((item) => {
-    const jobCity = (item.city || "Pakistan").toString();
+    const jobCity = stripHtml(item.city?.toString()) || "Pakistan";
     const description = stripHtml(item.description);
     return {
       id: `mustakbil-${guidString(item.guid) ?? item.link ?? item.title ?? Math.random()}`
@@ -92,8 +82,8 @@ async function getAllMustakbil(): Promise<Job[]> {
         .replace(/[^a-z0-9-]+/g, "-")
         .slice(0, 80),
       externalId: guidString(item.guid),
-      title: item.title?.toString().trim() || "Untitled Role",
-      company: item.company?.toString().trim() || "Mustakbil Employer",
+      title: cleanTitle(item.title?.toString()) || "Untitled Role",
+      company: stripHtml(item.company?.toString()) || "Mustakbil Employer",
       location: `${jobCity}, Pakistan`,
       city: jobCity,
       salaryCurrency: "PKR",

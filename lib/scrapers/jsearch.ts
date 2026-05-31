@@ -1,5 +1,6 @@
 import type { Job, JobType } from "../types";
 import { cacheGet, cacheSet, CACHE_TTL } from "../redis";
+import { stripHtml, decodeEntities } from "./html";
 
 interface JSearchJob {
   job_id: string;
@@ -75,15 +76,15 @@ export async function fetchJSearchJobs(role: string, city: string): Promise<Job[
   const jobs: Job[] = (json.data ?? []).map((j) => ({
     id: `jsearch-${j.job_id}`,
     externalId: j.job_id,
-    title: j.job_title || "Untitled Role",
-    company: j.employer_name || "Company",
+    title: decodeEntities(j.job_title) || "Untitled Role",
+    company: decodeEntities(j.employer_name) || "Company",
     location: [j.job_city, j.job_country].filter(Boolean).join(", ") || "Pakistan",
     city: j.job_city || "Remote",
     salaryMin: j.job_min_salary,
     salaryMax: j.job_max_salary,
     salaryCurrency: j.job_salary_currency || "PKR",
     jobType: mapEmploymentType(j.job_employment_type, j.job_is_remote),
-    description: j.job_description || "",
+    description: stripHtml(j.job_description),
     requirements: j.job_highlights?.Qualifications ?? [],
     source: "jsearch",
     applyUrl: j.job_apply_link || "",

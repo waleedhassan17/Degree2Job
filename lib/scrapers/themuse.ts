@@ -1,5 +1,6 @@
 import type { Job, JobType } from "../types";
 import { cacheGet, cacheSet, CACHE_TTL } from "../redis";
+import { stripHtml, decodeEntities } from "./html";
 
 // The Muse offers a free, keyless public jobs API with global + remote roles.
 // We pull a couple of pages and rank Pakistan / remote roles first.
@@ -18,17 +19,6 @@ interface MuseJob {
 
 interface MuseResponse {
   results?: MuseJob[];
-}
-
-function stripHtml(html?: string): string {
-  if (!html) return "";
-  return html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&#\d+;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 function jobTypeFor(j: MuseJob): JobType {
@@ -71,12 +61,12 @@ async function getAllMuse(): Promise<Job[]> {
 
   const now = new Date().toISOString();
   const jobs: Job[] = (json.results ?? []).map((j) => {
-    const location = j.locations?.[0]?.name?.trim() || "Remote";
+    const location = decodeEntities(j.locations?.[0]?.name?.trim()) || "Remote";
     return {
       id: `themuse-${j.id}`,
       externalId: String(j.id),
-      title: j.name || "Untitled Role",
-      company: j.company?.name || "Company",
+      title: decodeEntities(j.name) || "Untitled Role",
+      company: decodeEntities(j.company?.name) || "Company",
       location,
       city: location,
       salaryCurrency: "USD",

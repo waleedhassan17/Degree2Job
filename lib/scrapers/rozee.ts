@@ -1,18 +1,8 @@
 import type { Job, ParsedProfile } from "../types";
 import { cacheGet, cacheSet, CACHE_TTL } from "../redis";
+import { stripHtml, decodeEntities } from "./html";
 
 const BASE = "https://www.rozee.pk";
-
-function stripHtml(value?: string): string {
-  if (!value) return "";
-  return value
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&#\d+;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 function slugify(value: string): string {
   return value
@@ -186,9 +176,9 @@ export async function fetchRozeeJobs(
 
       jobs = records.map((record, idx) => {
         const cities = Array.isArray(record.city_exact) ? record.city_exact : [];
-        const loc = cities[0] || record.city || city || "Pakistan";
-        const title = String(record.title || record.title_exact || "Untitled Role").trim();
-        const company = String(record.company || record.company_exact || record.company_name || "Rozee Employer").trim();
+        const loc = decodeEntities(String(cities[0] || record.city || city || "Pakistan"));
+        const title = decodeEntities(String(record.title || record.title_exact || "Untitled Role").trim());
+        const company = decodeEntities(String(record.company || record.company_exact || record.company_name || "Rozee Employer").trim());
         const description = stripHtml(record.description_raw || record.description || "");
         const skills = Array.isArray(record.skills) ? record.skills.map((s: any) => String(s)).filter(Boolean) : [];
         const applyUrl = record.rozeePermaLink || record.permaLink ? `${BASE}/${record.rozeePermaLink || record.permaLink}` : BASE;
